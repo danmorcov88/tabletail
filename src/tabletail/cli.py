@@ -23,6 +23,7 @@ from .connection import ConnectionError, resolve_dsn
 from .diff import SnapshotError
 from .models import Snapshot
 from .tail_poll import tail_poll
+from .tail_wal import WalError, tail_wal
 
 app = typer.Typer(
     name="tabletail",
@@ -93,14 +94,15 @@ def tail(
     """
     if mode not in ("poll", "wal"):
         raise _fail(f"Unknown --mode '{mode}'. Use 'poll' or 'wal'.")
-    if mode == "wal":
-        raise _fail("--mode wal is not available yet (coming in a later version).")
     if interval <= 0:
         raise _fail("--interval must be greater than 0.")
 
     try:
-        tail_poll(resolve_dsn(dsn), table, interval=interval, where=where)
-    except (ConnectionError, SnapshotError) as exc:
+        if mode == "wal":
+            tail_wal(resolve_dsn(dsn), table, where=where)
+        else:
+            tail_poll(resolve_dsn(dsn), table, interval=interval, where=where)
+    except (ConnectionError, SnapshotError, WalError) as exc:
         raise _fail(str(exc)) from exc
 
 

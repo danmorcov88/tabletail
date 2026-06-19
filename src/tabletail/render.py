@@ -153,6 +153,18 @@ def tail_header(table: str, rows: int, interval: float, where: str | None) -> No
     console.print(text)
 
 
+def tail_header_wal(table: str, rows: int, plugin: str) -> None:
+    """Print the banner shown when a WAL (logical replication) tail starts."""
+    text = Text()
+    text.append("watching ", style="bold")
+    text.append(table, style="bold cyan")
+    text.append(f" ({rows} rows)", style="dim")
+    text.append("  via WAL", style="bold magenta")
+    text.append(f" [{plugin}]", style="dim")
+    text.append(f"  {DOT}  Ctrl-C to stop", style="dim")
+    console.print(text)
+
+
 def _compact_row(columns: list[str], row: dict[str, Any], skip: list[str]) -> Text:
     """A compact 'col=val col=val' rendering of a row, omitting the given columns."""
     text = Text()
@@ -180,32 +192,51 @@ def _change_line(ts: str, prefix: str, style: str, label: str, key: str, body: T
     return line
 
 
-def render_changes(result: DiffResult, console: Console = console) -> None:
-    """Stream one colored line per change: INSERT green, UPDATE yellow, DELETE red."""
-    columns = result.columns
-    pk = result.pk_columns
-    ts = dt.datetime.now().strftime("%H:%M:%S")
-
-    for change in sorted(result.added, key=lambda c: c.key):
+def _render_change(
+    change: Change, columns: list[str], pk: list[str], ts: str, console: Console
+) -> None:
+    """Render a single change as one colored line."""
+    key = _key_label(pk, change.key)
+    if change.kind == "added":
         body = _compact_row(columns, change.after or {}, skip=pk)
-        console.print(_change_line(ts, "+", "green", "INSERT", _key_label(pk, change.key), body))
-
-    for change in sorted(result.changed, key=lambda c: c.key):
+        console.print(_change_line(ts, "+", "green", "INSERT", key, body))
+    elif change.kind == "removed":
+        body = _compact_row(columns, change.before or {}, skip=pk)
+        console.print(_change_line(ts, "-", "red", "DELETE", key, body))
+    elif change.kind == "changed":
         before = change.before or {}
         after = change.after or {}
+        cols = change.columns or [c for c in columns if c not in pk]
         body = Text()
-        for i, col in enumerate(change.columns):
+        for i, col in enumerate(cols):
             if i:
                 body.append("; ", style="dim")
             body.append(f"{col}: ", style="bold")
             body.append_text(_old_new(before.get(col)))
             body.append(f" {ARROW} ", style="dim")
             body.append_text(_new(after.get(col)))
-        console.print(_change_line(ts, "~", "yellow", "UPDATE", _key_label(pk, change.key), body))
+        console.print(_change_line(ts, "~", "yellow", "UPDATE", key, body))
 
-    for change in sorted(result.removed, key=lambda c: c.key):
-        body = _compact_row(columns, change.before or {}, skip=pk)
-        console.print(_change_line(ts, "-", "red", "DELETE", _key_label(pk, change.key), body))
+
+def render_changes(result: DiffResult, console: Console = console) -> None:
+    """Render a poll's changes, grouped: INSERT green, UPDATE yellow, DELETE red."""
+    ts = dt.datetime.now().strftime("%H:%M:%S")
+    ordered = (
+        sorted(result.added, key=lambda c: c.key)
+        + sorted(result.changed, key=lambda c: c.key)
+        + sorted(result.removed, key=lambda c: c.key)
+    )
+    for change in ordered:
+        _render_change(change, result.columns, result.pk_columns, ts, console)
+
+
+def render_stream(
+    changes: list[Change], columns: list[str], pk: list[str], console: Console = console
+) -> None:
+    """Render WAL changes in the order they were committed."""
+    ts = dt.datetime.now().strftime("%H:%M:%S")
+    for change in changes:
+        _render_change(change, columns, pk, ts, console)
 
 
 def confirm_snapshot(snap_table: str, count: int, path: str) -> None:

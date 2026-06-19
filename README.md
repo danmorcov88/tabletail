@@ -35,14 +35,31 @@ appears in your shell history.
 
 ### How `tail` works
 
-The default mode is **polling**: the table is re-read every `--interval` seconds
-and compared to the previous read, streaming each change as a colored line —
-`INSERT` green, `UPDATE` yellow (with `old → new` per column), `DELETE` red.
+There are two modes, with a deliberate trade-off between them.
 
+**`--mode poll` (default).** The table is re-read every `--interval` seconds and
+compared to the previous read, streaming each change as a colored line —
+`INSERT` green, `UPDATE` yellow (with `old → new` per column), `DELETE` red.
 Polling needs only a primary key and works on any PostgreSQL server, with zero
 setup. Its honest trade-off: it sees the **net change per interval**, so a row
-that is inserted and deleted between two polls is missed. For complete,
-every-change capture (including transient rows), the WAL mode is on the way.
+inserted and deleted between two polls is missed.
+
+```bash
+tabletail tail --table orders --mode wal
+```
+
+**`--mode wal` (advanced).** Streams changes through a **temporary logical
+replication slot**, capturing *every* change — including `DELETE`s and
+short-lived rows — with no polling of the table. Requirements and notes:
+
+- The server must run with `wal_level = logical` (the bundled demo already does);
+  otherwise tabletail prints exactly what to set.
+- The role needs the `REPLICATION` privilege (or superuser).
+- Uses the `wal2json` output plugin when installed, otherwise `test_decoding`
+  (which ships with stock PostgreSQL).
+- The slot is **temporary** and is also dropped explicitly on exit — orphaned
+  slots make a server retain WAL, so cleanup is treated as critical.
+- `--where` is not supported in this mode.
 
 ## Development
 

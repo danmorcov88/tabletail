@@ -29,19 +29,23 @@ def resolve_dsn(dsn: str | None) -> str:
 
 
 @contextmanager
-def connect(dsn: str, autocommit: bool = False) -> Iterator[psycopg.Connection]:
-    """Open a read-only connection to PostgreSQL and close it on exit.
+def connect(
+    dsn: str, autocommit: bool = False, read_only: bool = True
+) -> Iterator[psycopg.Connection]:
+    """Open a connection to PostgreSQL and close it on exit.
 
-    Pass ``autocommit=True`` for long-lived polling so each query sees freshly
-    committed data and no idle transaction is held open between polls.
+    By default the session is read-only — a hard guarantee the tool can never
+    modify user data. WAL mode passes ``read_only=False`` because consuming a
+    replication slot advances server-side replication state (it still never
+    touches user tables). Pass ``autocommit=True`` for long-lived streaming so
+    each query sees freshly committed data and no idle transaction lingers.
     """
     try:
         conn = psycopg.connect(dsn)
     except psycopg.OperationalError as exc:
         raise ConnectionError(f"Could not connect to PostgreSQL: {exc}") from exc
     try:
-        # Read-only at the session level: a hard guarantee, not just convention.
-        conn.read_only = True
+        conn.read_only = read_only
         conn.autocommit = autocommit
         yield conn
     finally:
