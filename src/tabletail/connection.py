@@ -29,8 +29,12 @@ def resolve_dsn(dsn: str | None) -> str:
 
 
 @contextmanager
-def connect(dsn: str) -> Iterator[psycopg.Connection]:
-    """Open a read-only connection to PostgreSQL and close it on exit."""
+def connect(dsn: str, autocommit: bool = False) -> Iterator[psycopg.Connection]:
+    """Open a read-only connection to PostgreSQL and close it on exit.
+
+    Pass ``autocommit=True`` for long-lived polling so each query sees freshly
+    committed data and no idle transaction is held open between polls.
+    """
     try:
         conn = psycopg.connect(dsn)
     except psycopg.OperationalError as exc:
@@ -38,6 +42,7 @@ def connect(dsn: str) -> Iterator[psycopg.Connection]:
     try:
         # Read-only at the session level: a hard guarantee, not just convention.
         conn.read_only = True
+        conn.autocommit = autocommit
         yield conn
     finally:
         conn.close()

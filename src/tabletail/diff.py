@@ -59,36 +59,44 @@ def _primary_key_columns(conn: psycopg.Connection, table: str) -> list[str]:
         raise SnapshotError(f"Table '{table}' does not exist.") from exc
 
 
+def read_snapshot(conn: psycopg.Connection, table: str, where: str | None = None) -> Snapshot:
+    """Read a table into a Snapshot using an already-open connection.
+
+    Used both for one-shot snapshots and, repeatedly, by the polling tail.
+    """
+    pk_columns = _primary_key_columns(conn, table)
+    if not pk_columns:
+        raise SnapshotError(
+            f"Table '{table}' has no primary key; tabletail needs one to match rows."
+        )
+
+    ident = table_identifier(table)
+    query = sql.SQL("SELECT * FROM {}").format(ident)
+    if where:
+        query += sql.SQL(" WHERE ") + sql.SQL(where)  # user-supplied filter on their own data
+    order_by = sql.SQL(", ").join(sql.Identifier(c) for c in pk_columns)
+    query += sql.SQL(" ORDER BY ") + order_by
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(query)
+        columns = [d.name for d in cur.description]
+        rows: list[Row] = [{k: _normalize(v) for k, v in row.items()} for row in cur]
+
+    captured_at = dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
+    return Snapshot(
+        table=table,
+        pk_columns=pk_columns,
+        columns=columns,
+        rows=rows,
+        captured_at=captured_at,
+        where=where,
+    )
+
+
 def snapshot(dsn: str, table: str, where: str | None = None) -> Snapshot:
     """Read a table (optionally filtered) into a Snapshot, ordered by primary key."""
     with connect(dsn) as conn:
-        pk_columns = _primary_key_columns(conn, table)
-        if not pk_columns:
-            raise SnapshotError(
-                f"Table '{table}' has no primary key; tabletail needs one to match rows."
-            )
-
-        ident = table_identifier(table)
-        query = sql.SQL("SELECT * FROM {}").format(ident)
-        if where:
-            query += sql.SQL(" WHERE ") + sql.SQL(where)  # user-supplied filter on their own data
-        order_by = sql.SQL(", ").join(sql.Identifier(c) for c in pk_columns)
-        query += sql.SQL(" ORDER BY ") + order_by
-
-        with conn.cursor(row_factory=dict_row) as cur:
-            cur.execute(query)
-            columns = [d.name for d in cur.description]
-            rows: list[Row] = [{k: _normalize(v) for k, v in row.items()} for row in cur]
-
-        captured_at = dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
-        return Snapshot(
-            table=table,
-            pk_columns=pk_columns,
-            columns=columns,
-            rows=rows,
-            captured_at=captured_at,
-            where=where,
-        )
+        return read_snapshot(conn, table, where=where)
 
 
 def compare(before: Snapshot, after: Snapshot) -> DiffResult:

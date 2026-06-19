@@ -22,6 +22,7 @@ from . import diff as diff_mod
 from .connection import ConnectionError, resolve_dsn
 from .diff import SnapshotError
 from .models import Snapshot
+from .tail_poll import tail_poll
 
 app = typer.Typer(
     name="tabletail",
@@ -31,19 +32,6 @@ app = typer.Typer(
 )
 
 DSN_HELP = "PostgreSQL connection string. Falls back to the DATABASE_URL environment variable."
-
-
-def _mask(dsn: str | None) -> str:
-    """Render a DSN for display without leaking the password."""
-    if not dsn:
-        return "<none>"
-    if "@" in dsn and "://" in dsn:
-        scheme, rest = dsn.split("://", 1)
-        if "@" in rest:
-            creds, host = rest.split("@", 1)
-            user = creds.split(":", 1)[0]
-            return f"{scheme}://{user}:***@{host}"
-    return dsn
 
 
 def _fail(message: str) -> typer.Exit:
@@ -94,12 +82,26 @@ def tail(
         2.0, "--interval", "-i", help="Polling interval in seconds (poll mode)."
     ),
 ) -> None:
-    """Follow changes in a table live, like `tail -f` for rows."""
-    typer.echo("tail: not implemented yet")
-    typer.echo(
-        f"  table={table} dsn={_mask(dsn)} mode={mode} "
-        f"where={where!r} interval={interval}"
-    )
+    """Follow changes in a table live, like `tail -f` for rows.
+
+    Default mode is 'poll': the table is re-read every --interval seconds and the
+    difference from the previous read is streamed (INSERT green, UPDATE yellow,
+    DELETE red). Polling needs only a primary key and works on any server.
+
+    Limitation: polling sees the net change per interval, so changes made and
+    undone between two polls can be missed. For complete capture use --mode wal.
+    """
+    if mode not in ("poll", "wal"):
+        raise _fail(f"Unknown --mode '{mode}'. Use 'poll' or 'wal'.")
+    if mode == "wal":
+        raise _fail("--mode wal is not available yet (coming in a later version).")
+    if interval <= 0:
+        raise _fail("--interval must be greater than 0.")
+
+    try:
+        tail_poll(resolve_dsn(dsn), table, interval=interval, where=where)
+    except (ConnectionError, SnapshotError) as exc:
+        raise _fail(str(exc)) from exc
 
 
 @app.command()

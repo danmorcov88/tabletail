@@ -6,6 +6,7 @@ column-level view for changed rows.
 
 from __future__ import annotations
 
+import datetime as dt
 import sys
 from typing import Any
 
@@ -33,6 +34,7 @@ console = Console()
 # Pretty glyphs on capable terminals; plain ASCII on legacy Windows consoles.
 ARROW = "->" if console.legacy_windows else "→"
 CHECK = "[ok]" if console.legacy_windows else "✓"
+DOT = "-" if console.legacy_windows else "·"
 
 NULL = Text("NULL", style="dim italic")
 
@@ -136,6 +138,74 @@ def _new(value: Any) -> Text:
     if value is None:
         return Text("NULL", style="dim italic green")
     return Text(str(value), style="green")
+
+
+def tail_header(table: str, rows: int, interval: float, where: str | None) -> None:
+    """Print the banner shown when a polling tail starts."""
+    text = Text()
+    text.append("watching ", style="bold")
+    text.append(table, style="bold cyan")
+    text.append(f" ({rows} rows)", style="dim")
+    text.append(f"  every {interval:g}s", style="dim")
+    if where:
+        text.append(f"  where {where}", style="dim italic")
+    text.append(f"  {DOT}  Ctrl-C to stop", style="dim")
+    console.print(text)
+
+
+def _compact_row(columns: list[str], row: dict[str, Any], skip: list[str]) -> Text:
+    """A compact 'col=val col=val' rendering of a row, omitting the given columns."""
+    text = Text()
+    first = True
+    for col in columns:
+        if col in skip:
+            continue
+        if not first:
+            text.append("  ")
+        first = False
+        text.append(f"{col}=", style="dim")
+        value = row.get(col)
+        text.append("NULL" if value is None else str(value))
+    return text
+
+
+def _change_line(ts: str, prefix: str, style: str, label: str, key: str, body: Text) -> Text:
+    line = Text()
+    line.append(f"{ts} ", style="dim")
+    line.append(f"{prefix} ", style=f"bold {style}")
+    line.append(f"{label:<6} ", style=style)
+    line.append(key, style="bold cyan")
+    line.append("  ")
+    line.append_text(body)
+    return line
+
+
+def render_changes(result: DiffResult, console: Console = console) -> None:
+    """Stream one colored line per change: INSERT green, UPDATE yellow, DELETE red."""
+    columns = result.columns
+    pk = result.pk_columns
+    ts = dt.datetime.now().strftime("%H:%M:%S")
+
+    for change in sorted(result.added, key=lambda c: c.key):
+        body = _compact_row(columns, change.after or {}, skip=pk)
+        console.print(_change_line(ts, "+", "green", "INSERT", _key_label(pk, change.key), body))
+
+    for change in sorted(result.changed, key=lambda c: c.key):
+        before = change.before or {}
+        after = change.after or {}
+        body = Text()
+        for i, col in enumerate(change.columns):
+            if i:
+                body.append("; ", style="dim")
+            body.append(f"{col}: ", style="bold")
+            body.append_text(_old_new(before.get(col)))
+            body.append(f" {ARROW} ", style="dim")
+            body.append_text(_new(after.get(col)))
+        console.print(_change_line(ts, "~", "yellow", "UPDATE", _key_label(pk, change.key), body))
+
+    for change in sorted(result.removed, key=lambda c: c.key):
+        body = _compact_row(columns, change.before or {}, skip=pk)
+        console.print(_change_line(ts, "-", "red", "DELETE", _key_label(pk, change.key), body))
 
 
 def confirm_snapshot(snap_table: str, count: int, path: str) -> None:
