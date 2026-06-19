@@ -8,7 +8,10 @@
 table — live (`tail`) or as the difference between two points in time (`diff`).
 Read-only on your data, one command, instant result.
 
-![tabletail demo](docs/demo.gif)
+![tabletail tail — live output](docs/tail.svg)
+
+> A real render of the tool's output (see [`docs/generate_assets.py`](docs/generate_assets.py)).
+> For an animated version, [`docs/RECORDING.md`](docs/RECORDING.md) shows how to record `docs/demo.gif`.
 
 ## 30-second tour
 
@@ -84,6 +87,33 @@ orders: +1 added  ~2 changed  -1 removed
 └──────┴────────┴──────────────────┘
 ```
 
+![tabletail diff — added / changed / removed](docs/diff.svg)
+
+## How it works
+
+**Polling** re-reads the table on an interval and diffs it against the previous
+read, matched by primary key. Simple, and it runs against any PostgreSQL.
+
+```mermaid
+flowchart LR
+    DB[("orders<br/>table")] -->|"SELECT *<br/>every --interval"| READ["read<br/>snapshot"]
+    READ --> CMP{"compare with<br/>previous read<br/>by primary key"}
+    CMP -->|"added · changed · removed"| OUT["colored<br/>live output"]
+    CMP -. "becomes the new previous" .-> READ
+```
+
+**WAL mode** never polls the table. PostgreSQL writes every change to the
+write-ahead log; tabletail creates a temporary logical replication slot and
+reads decoded changes from it — so nothing is missed, including deletes.
+
+```mermaid
+flowchart LR
+    DB[("orders<br/>table")] -->|"every<br/>INSERT / UPDATE / DELETE"| WAL[("WAL")]
+    WAL --> SLOT["temporary<br/>logical slot"]
+    SLOT -->|"pg_logical_slot_<br/>get_changes"| DEC["decode<br/>wal2json /<br/>test_decoding"]
+    DEC --> OUT["colored<br/>live output"]
+```
+
 ## Design decisions
 
 These are the trade-offs worth understanding before you rely on it.
@@ -152,6 +182,8 @@ bash examples/demo.sh
 pip install -e ".[dev]"
 ruff check .
 pytest                    # set TABLETAIL_TEST_DSN, or rely on the demo above
+
+python docs/generate_assets.py   # regenerate the README images from real output
 ```
 
 ## License
