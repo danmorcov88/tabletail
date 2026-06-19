@@ -41,11 +41,12 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "ruff>=0.6",
+    "pillow>=10.0",  # docs/generate_assets.py renders the README screenshots
 ]
 
 [project.urls]
-Homepage = "https://github.com/danmorcov/tabletail"
-Repository = "https://github.com/danmorcov/tabletail"
+Homepage = "https://github.com/danmorcov88/tabletail"
+Repository = "https://github.com/danmorcov88/tabletail"
 
 [project.scripts]
 tabletail = "tabletail.cli:app"

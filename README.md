@@ -1,6 +1,6 @@
 # tabletail
 
-[![CI](https://github.com/danmorcov/tabletail/actions/workflows/ci.yml/badge.svg)](https://github.com/danmorcov/tabletail/actions/workflows/ci.yml)
+[![CI](https://github.com/danmorcov88/tabletail/actions/workflows/ci.yml/badge.svg)](https://github.com/danmorcov88/tabletail/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
 
@@ -8,9 +8,9 @@
 table — live (`tail`) or as the difference between two points in time (`diff`).
 Read-only on your data, one command, instant result.
 
-![tabletail tail — live output](docs/tail.svg)
+![tabletail tail — live output](docs/tail_poll.png)
 
-> A real render of the tool's output (see [`docs/generate_assets.py`](docs/generate_assets.py)).
+> A real screenshot of the tool's output, rendered by [`docs/generate_assets.py`](docs/generate_assets.py).
 > For an animated version, [`docs/RECORDING.md`](docs/RECORDING.md) shows how to record `docs/demo.gif`.
 
 ## 30-second tour
@@ -62,6 +62,14 @@ tabletail tail --table orders --where "status = 'paid'"
 tabletail tail --table orders --mode wal
 ```
 
+WAL mode captures every change — including deletes — with no polling:
+
+![tabletail tail --mode wal](docs/tail_wal.png)
+
+Filter to just the rows you care about:
+
+![tabletail tail --where](docs/tail_where.png)
+
 ### `diff` — compare two points in time
 
 ```bash
@@ -87,7 +95,11 @@ orders: +1 added  ~2 changed  -1 removed
 └──────┴────────┴──────────────────┘
 ```
 
-![tabletail diff — added / changed / removed](docs/diff.svg)
+![tabletail diff — added / changed / removed](docs/diff.png)
+
+The same thing as an end-to-end session — snapshot, change data, snapshot, diff:
+
+![tabletail snapshot and diff workflow](docs/workflow.png)
 
 ## How it works
 
