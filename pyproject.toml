@@ -1,0 +1,60 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tabletail"
+version = "0.1.0"
+description = "See what changes in a PostgreSQL table — live (tail) or between two points in time (diff)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Dan Morcov" }]
+keywords = [
+    "postgresql",
+    "postgres",
+    "cli",
+    "diff",
+    "tail",
+    "database",
+    "data-engineering",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Database",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "typer>=0.16",
+    "psycopg[binary]>=3.1",
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+[project.urls]
+Homepage = "https://github.com/danmorcov/tabletail"
+Repository = "https://github.com/danmorcov/tabletail"
+
+[project.scripts]
+tabletail = "tabletail.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tabletail"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

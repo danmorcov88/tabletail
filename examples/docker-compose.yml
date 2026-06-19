@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: tabletail-demo
+    environment:
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: demo
+      POSTGRES_DB: demo
+    # wal_level=logical is required for the advanced `tail --mode wal` (Phase 3).
+    # It is harmless for everything else and keeps the demo ready out of the box.
+    command: ["postgres", "-c", "wal_level=logical"]
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./seed.sql:/docker-entrypoint-initdb.d/seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U demo -d demo"]
+      interval: 2s
+      timeout: 3s
+      retries: 10
