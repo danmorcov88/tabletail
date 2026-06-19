@@ -1,0 +1,4 @@
+# Normalize line endings. Shell scripts must stay LF or bash breaks on the
+# shebang ("bad interpreter: /usr/bin/env bash^M").
+* text=auto
+*.sh text eol=lf
