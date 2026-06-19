@@ -106,25 +106,13 @@ The same thing as an end-to-end session — snapshot, change data, snapshot, dif
 **Polling** re-reads the table on an interval and diffs it against the previous
 read, matched by primary key. Simple, and it runs against any PostgreSQL.
 
-```mermaid
-flowchart LR
-    DB[("orders<br/>table")] -->|"SELECT *<br/>every --interval"| READ["read<br/>snapshot"]
-    READ --> CMP{"compare with<br/>previous read<br/>by primary key"}
-    CMP -->|"added · changed · removed"| OUT["colored<br/>live output"]
-    CMP -. "becomes the new previous" .-> READ
-```
+![polling: re-read, diff by primary key, stream changes](docs/how_poll.png)
 
 **WAL mode** never polls the table. PostgreSQL writes every change to the
 write-ahead log; tabletail creates a temporary logical replication slot and
 reads decoded changes from it — so nothing is missed, including deletes.
 
-```mermaid
-flowchart LR
-    DB[("orders<br/>table")] -->|"every<br/>INSERT / UPDATE / DELETE"| WAL[("WAL")]
-    WAL --> SLOT["temporary<br/>logical slot"]
-    SLOT -->|"pg_logical_slot_<br/>get_changes"| DEC["decode<br/>wal2json /<br/>test_decoding"]
-    DEC --> OUT["colored<br/>live output"]
-```
+![WAL: temporary logical slot, decode, stream changes](docs/how_wal.png)
 
 ## Design decisions
 

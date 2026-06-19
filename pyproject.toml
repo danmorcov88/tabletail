@@ -41,7 +41,8 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "ruff>=0.6",
-    "pillow>=10.0",  # docs/generate_assets.py renders the README screenshots
+    "pillow>=10.0",      # docs/generate_assets.py renders the README screenshots
+    "matplotlib>=3.7",   # docs/generate_diagrams.py renders the architecture diagrams
 ]
 
 [project.urls]
