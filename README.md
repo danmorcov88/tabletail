@@ -41,7 +41,7 @@ A demo Postgres (with a seeded `orders` table) is available for local testing:
 
 ```bash
 docker compose -f examples/docker-compose.yml up -d
-# DSN: postgres://demo:demo@localhost:5432/demo
+# DSN: postgres://demo:demo@localhost:5433/demo
 ```
 
 ## License

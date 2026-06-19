@@ -9,8 +9,9 @@ services:
     # wal_level=logical is required for the advanced `tail --mode wal` (Phase 3).
     # It is harmless for everything else and keeps the demo ready out of the box.
     command: ["postgres", "-c", "wal_level=logical"]
+    # Published on 5433 to avoid clashing with a local PostgreSQL on 5432.
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - ./seed.sql:/docker-entrypoint-initdb.d/seed.sql:ro
     healthcheck:
