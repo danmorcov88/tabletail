@@ -270,6 +270,34 @@ def _changes_from_data(
     return out
 
 
+def _get_changes_sql(plugin: str) -> str:
+    if plugin == "wal2json":
+        return (
+            "SELECT data FROM pg_logical_slot_get_changes(%s, NULL, NULL, "
+            "'format-version', '2', 'numeric-data-types-as-string', '1')"
+        )
+    return "SELECT data FROM pg_logical_slot_get_changes(%s, NULL, NULL)"
+
+
+def _consume_once(
+    conn: psycopg.Connection,
+    slot: str,
+    sql: str,
+    plugin: str,
+    target: tuple[str | None, str],
+    pk: list[str],
+    cache: dict,
+) -> list[Change]:
+    """Read all currently-buffered changes from the slot and fold them in."""
+    with conn.cursor() as cur:
+        cur.execute(sql, (slot,))
+        rows = cur.fetchall()
+    batch: list[Change] = []
+    for (data,) in rows:
+        batch.extend(_changes_from_data(data, plugin, target, pk, cache))
+    return batch
+
+
 def tail_wal(dsn: str, table: str, where: str | None = None) -> None:
     """Stream every change to a table via a temporary logical replication slot."""
     if where:
@@ -287,21 +315,11 @@ def tail_wal(dsn: str, table: str, where: str | None = None) -> None:
         cache: dict[tuple, Row] = seed.by_key()
 
         plugin = _create_slot(conn, slot)
-        get_changes = (
-            "SELECT data FROM pg_logical_slot_get_changes(%s, NULL, NULL, "
-            "'format-version', '2', 'numeric-data-types-as-string', '1')"
-            if plugin == "wal2json"
-            else "SELECT data FROM pg_logical_slot_get_changes(%s, NULL, NULL)"
-        )
+        sql = _get_changes_sql(plugin)
         try:
             render.tail_header_wal(table, len(cache), plugin)
             while True:
-                with conn.cursor() as cur:
-                    cur.execute(get_changes, (slot,))
-                    rows = cur.fetchall()
-                batch: list[Change] = []
-                for (data,) in rows:
-                    batch.extend(_changes_from_data(data, plugin, target, pk, cache))
+                batch = _consume_once(conn, slot, sql, plugin, target, pk, cache)
                 if batch:
                     render.render_stream(batch, columns, pk)
                 time.sleep(POLL_SECONDS)
